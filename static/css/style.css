@@ -616,6 +616,19 @@ code { background: var(--ink-100); padding: 2px 6px; border-radius: 4px; font-si
   border-top: 1px solid var(--ink-200);
   background: var(--white);
 }
+.main-footer {
+  padding: 16px 24px;
+  color: var(--ink-500);
+  font-size: 12px;
+  border-top: 1px solid var(--ink-200);
+  background: var(--white);
+  text-align: center;
+}
+.version-label {
+  font-size: 11px;
+  color: var(--ink-400);
+  margin-top: 4px;
+}
 
 /* =========================================================================
    Panels, cards & layout

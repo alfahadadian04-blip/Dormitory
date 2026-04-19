@@ -155,7 +155,8 @@ def dashboard():
             .all()
         )
 
-        response = render_template(
+        from flask import make_response
+        response = make_response(render_template(
             "dashboard.html",
             total_tenants=total_tenants,
             active_tenants=active_tenants,
@@ -164,7 +165,7 @@ def dashboard():
             overdue_count=len(overdue),
             overdue_tenants=overdue,
             recent_payments=recent_payments,
-        )
+        ))
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -230,9 +231,10 @@ def tenants_list():
             query = query.filter(Tenant.status == status_filter)
 
         tenants = query.order_by(Tenant.room_number.asc(), Tenant.nickname.asc()).all()
-        response = render_template(
+        from flask import make_response
+        response = make_response(render_template(
             "tenants.html", tenants=tenants, search=search, status_filter=status_filter
-        )
+        ))
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -290,12 +292,13 @@ def tenant_detail(tenant_id: int):
         tenant = Tenant.query.get_or_404(tenant_id)
         payments = tenant.payments.all()
         total_paid = sum((float(p.amount) for p in payments), 0.0)
-        response = render_template(
+        from flask import make_response
+        response = make_response(render_template(
             "tenant_detail.html",
             tenant=tenant,
             payments=payments,
             total_paid=total_paid,
-        )
+        ))
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -380,13 +383,14 @@ def payments_list():
         ).all()
         tenants = Tenant.query.order_by(Tenant.nickname.asc()).all()
         total = sum((float(p.amount) for p in payments), 0.0)
-        response = render_template(
+        from flask import make_response
+        response = make_response(render_template(
             "payments.html",
             payments=payments,
             tenants=tenants,
             tenant_id=tenant_id,
             total=total,
-        )
+        ))
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -638,7 +642,8 @@ def reports():
         overdue_tenants = _get_overdue_tenants()
         unpaid_tenants = _get_unpaid_tenants()
 
-        response = render_template(
+        from flask import make_response
+        response = make_response(render_template(
             "reports.html",
             total_tenants=total_tenants,
             active_tenants=active_tenants,
@@ -648,7 +653,7 @@ def reports():
             total_balance=float(total_balance),
             overdue_tenants=overdue_tenants,
             unpaid_tenants=unpaid_tenants,
-        )
+        ))
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'

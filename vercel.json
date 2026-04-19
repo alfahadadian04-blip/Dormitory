@@ -4,17 +4,19 @@
     {
       "src": "api/index.py",
       "use": "@vercel/python",
-      "config": { "includeFiles": "**" }
+      "config": {
+        "includeFiles": [
+          "static/**",
+          "templates/**",
+          "*.py",
+          "*.txt",
+          "*.json"
+        ],
+        "maxLambdaSize": "15mb"
+      }
     }
   ],
   "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/static/$1",
-      "headers": {
-        "cache-control": "public, max-age=31536000, immutable"
-      }
-    },
     {
       "src": "/(.*)",
       "dest": "/api/index.py"

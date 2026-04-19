@@ -364,12 +364,28 @@ def payments_list():
 @main_bp.route("/payments/new", methods=["GET", "POST"])
 @login_required
 def payment_create():
-    tenants = Tenant.query.order_by(Tenant.nickname.asc()).all()
+    try:
+        tenants = Tenant.query.order_by(Tenant.nickname.asc()).all()
+    except Exception as e:
+        app.logger.error(f"Error fetching tenants: {e}")
+        flash("Error loading tenant data. Please try again.", "error")
+        return redirect(url_for("main.payments_list"))
+    
     preselect_id = request.args.get("tenant_id", type=int)
 
     if request.method == "POST":
         try:
+            # Validate tenant selection
             tenant_id = _parse_int(request.form.get("tenant_id"), 0)
+            if not tenant_id:
+                flash("Please select a tenant.", "error")
+                return render_template(
+                    "payment_form.html",
+                    tenants=tenants,
+                    form=request.form,
+                    preselect_id=preselect_id,
+                )
+            
             tenant = Tenant.query.get(tenant_id)
             if not tenant:
                 flash("Please choose a valid tenant.", "error")
@@ -380,8 +396,9 @@ def payment_create():
                     preselect_id=preselect_id,
                 )
 
+            # Validate amount
             amount = _parse_decimal(request.form.get("amount"))
-            if amount <= 0:
+            if amount is None or amount <= 0:
                 flash("Payment amount must be greater than zero.", "error")
                 return render_template(
                     "payment_form.html",
@@ -390,28 +407,44 @@ def payment_create():
                     preselect_id=preselect_id,
                 )
 
+            # Validate payment date
+            payment_date = _parse_date(request.form.get("payment_date"), date.today())
+            if not payment_date:
+                payment_date = date.today()
+
+            # Create payment
             payment = Payment(
                 tenant_id=tenant.id,
                 amount=amount,
-                payment_date=_parse_date(request.form.get("payment_date"), date.today()),
+                payment_date=payment_date,
                 notes=(request.form.get("notes") or "").strip() or None,
             )
 
             # Reduce pending balance (allow going into credit = negative)
-            tenant.pending_balance = (tenant.pending_balance or 0) - amount
+            old_balance = tenant.pending_balance or 0
+            tenant.pending_balance = old_balance - amount
 
             db.session.add(payment)
             db.session.commit()
+            
+            app.logger.info(f"Payment recorded: tenant={tenant.nickname}, amount={amount}, old_balance={old_balance}, new_balance={tenant.pending_balance}")
+            
             flash(
                 f"Payment of {amount} recorded for {tenant.nickname}.",
                 "success",
             )
             return redirect(url_for("main.payments_list"))
         except ValueError as e:
+            app.logger.error(f"Validation error: {e}")
             flash(str(e), "error")
         except SQLAlchemyError as e:
             db.session.rollback()
+            app.logger.error(f"Database error: {e}")
             flash(f"Database error: {e}", "error")
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Unexpected error: {e}")
+            flash(f"An error occurred: {e}", "error")
 
     return render_template(
         "payment_form.html",

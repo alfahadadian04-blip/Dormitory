@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ tenant.nickname }} - Tenant{% endblock %}
+{% block page_title %}Tenant: {{ tenant.nickname }}{% endblock %}
+
+{% block content %}
+<div class="detail-grid">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Profile</h2>
+      <div>
+        <a class="btn btn-sm" href="{{ url_for('main.tenant_edit', tenant_id=tenant.id) }}">Edit</a>
+        <a class="btn btn-sm btn-primary" href="{{ url_for('main.payment_create', tenant_id=tenant.id) }}">Record Payment</a>
+      </div>
+    </div>
+
+    <dl class="detail-list">
+      <div><dt>Full Name</dt><dd>{{ tenant.full_name }}</dd></div>
+      <div><dt>Room</dt><dd>{{ tenant.room_number }}</dd></div>
+      <div><dt>Contact</dt><dd>{{ tenant.contact_number or '-' }}</dd></div>
+      <div><dt>Move-in Date</dt><dd>{{ tenant.move_in_date|date_fmt }}</dd></div>
+      <div><dt>Monthly Rent</dt><dd>&#8369;{{ tenant.monthly_rent|money }}</dd></div>
+      <div><dt>Due Day</dt><dd>Day {{ tenant.due_day }} of the month</dd></div>
+      <div><dt>Pending Balance</dt><dd>&#8369;{{ tenant.pending_balance|money }}</dd></div>
+      <div><dt>Status</dt><dd><span class="badge badge-{{ tenant.payment_status }}">{{ tenant.payment_status|capitalize }}</span></dd></div>
+      <div><dt>Total Paid</dt><dd>&#8369;{{ total_paid|money }}</dd></div>
+      <div><dt>Created</dt><dd class="muted">{{ tenant.created_at|date_fmt('%b %d, %Y %I:%M %p') }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Payment History</h2>
+      <span class="muted small">{{ payments|length }} record{{ 's' if payments|length != 1 else '' }}</span>
+    </div>
+    {% if payments %}
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Date</th><th class="num">Amount</th><th>Notes</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for p in payments %}
+            <tr>
+              <td>{{ p.payment_date|date_fmt }}</td>
+              <td class="num">&#8369;{{ p.amount|money }}</td>
+              <td class="muted">{{ p.notes or '-' }}</td>
+              <td class="row-actions">
+                <form method="POST" action="{{ url_for('main.payment_delete', payment_id=p.id) }}"
+                      onsubmit="return confirm('Delete this payment? Balance will be restored.');"
+                      style="display:inline;">
+                  <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">&#8709;</div>
+        <p>No payments yet for this tenant.</p>
+        <a class="btn btn-primary" href="{{ url_for('main.payment_create', tenant_id=tenant.id) }}">Record Payment</a>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

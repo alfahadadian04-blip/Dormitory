@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Record Payment - DORM Management{% endblock %}
+{% block page_title %}Record Payment{% endblock %}
+
+{% block content %}
+<section class="panel">
+  {% if tenants %}
+  <form method="POST" class="form-grid" data-loading="true">
+    <div class="form-field full">
+      <label>Tenant <span class="req">*</span></label>
+      <select name="tenant_id" required>
+        <option value="">-- Select tenant --</option>
+        {% for t in tenants %}
+        <option value="{{ t.id }}"
+          {% if form.get('tenant_id')|string == t.id|string or preselect_id == t.id %}selected{% endif %}>
+          {{ t.nickname }} — {{ t.full_name }} (Room {{ t.room_number }}) — Balance &#8369;{{ t.pending_balance|money }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-field">
+      <label>Amount <span class="req">*</span></label>
+      <input type="number" step="0.01" min="0.01" name="amount" required value="{{ form.get('amount', '') }}" />
+    </div>
+
+    <div class="form-field">
+      <label>Payment Date</label>
+      <input type="date" name="payment_date" value="{{ form.get('payment_date', '') }}" />
+    </div>
+
+    <div class="form-field full">
+      <label>Notes</label>
+      <textarea name="notes" rows="3">{{ form.get('notes', '') }}</textarea>
+    </div>
+
+    <div class="form-actions full">
+      <a class="btn" href="{{ url_for('main.payments_list') }}">Cancel</a>
+      <button class="btn btn-primary" type="submit">Save Payment</button>
+    </div>
+  </form>
+  {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">&#8709;</div>
+      <p>You need at least one tenant to record a payment.</p>
+      <a class="btn btn-primary" href="{{ url_for('main.tenant_create') }}">Add a tenant</a>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

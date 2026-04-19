@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Dormitory Management{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  {% if current_user.is_authenticated %}
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">D</div>
+        <div class="brand-text">
+          <span class="brand-name">DORM</span>
+          <span class="brand-sub">Management</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="{{ url_for('main.dashboard') }}"
+           class="nav-item {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
+          <i data-lucide="layout-dashboard" class="nav-icon"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('main.tenants_list') }}"
+           class="nav-item {% if request.endpoint and request.endpoint.startswith('main.tenant') %}active{% endif %}">
+          <i data-lucide="users" class="nav-icon"></i>
+          <span>Tenants</span>
+        </a>
+        <a href="{{ url_for('main.payments_list') }}"
+           class="nav-item {% if request.endpoint and request.endpoint.startswith('main.payment') %}active{% endif %}">
+          <i data-lucide="credit-card" class="nav-icon"></i>
+          <span>Payments</span>
+        </a>
+        <a href="{{ url_for('main.reports') }}"
+           class="nav-item {% if request.endpoint == 'main.reports' %}active{% endif %}">
+          <i data-lucide="bar-chart-3" class="nav-icon"></i>
+          <span>Reports</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-alert" id="sidebar-alert" style="display:none;">
+        <div class="alert-title">
+          <span class="dot"></span> Overdue
+        </div>
+        <div class="alert-body">
+          <span id="overdue-count-sidebar">0</span> tenants are overdue
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar">
+            <img src="{{ url_for('static', filename='images/ama.jpg') }}" alt="User Avatar" class="user-avatar-img">
+          </div>
+          <div class="user-meta">
+            <div class="user-name">{{ current_user.username }}</div>
+            <div class="user-role">Administrator</div>
+          </div>
+        </div>
+        <a class="logout-btn" href="{{ url_for('auth.logout') }}">
+          <i data-lucide="log-out" class="logout-icon"></i>
+          <span>Log out</span>
+        </a>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">&#9776;</button>
+        <h1 class="topbar-title">{% block page_title %}Dashboard{% endblock %}</h1>
+        <div class="topbar-actions">
+          <div class="notif-bell" id="notifBell" title="Due date notifications">
+            <span class="bell-icon">&#9888;</span>
+            <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+          </div>
+          <div class="notif-dropdown" id="notifDropdown" style="display:none;">
+            <div class="notif-header">
+              <span class="notif-title">Payment Due Notifications</span>
+              <span class="notif-count" id="notifDropdownCount">0</span>
+            </div>
+            <div class="notif-list" id="notifList">
+              <!-- Notifications will be populated by JavaScript -->
+            </div>
+            <div class="notif-empty" id="notifEmpty" style="display:none;">
+              <span class="notif-empty-icon">&#10003;</span>
+              <p>No upcoming dues</p>
+            </div>
+            <div class="notif-footer">
+              <a href="{{ url_for('main.payments_list') }}" class="notif-link">View All Payments</a>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="footer">
+        <span>&copy; {{ current_year }} DORM Management</span>
+      </footer>
+    </div>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  </div>
+  {% else %}
+    {% block auth_content %}{% endblock %}
+  {% endif %}
+
+  <div id="loadingOverlay" class="loading-overlay" style="display:none;">
+    <div class="spinner"></div>
+  </div>
+
+  <script>
+    (function () {
+      // Initialize Lucide icons
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+
+      const toggle = document.getElementById('menuToggle');
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      if (toggle && sidebar) {
+        toggle.addEventListener('click', () => {
+          sidebar.classList.toggle('open');
+          backdrop && backdrop.classList.toggle('show');
+        });
+      }
+      if (backdrop) {
+        backdrop.addEventListener('click', () => {
+          sidebar.classList.remove('open');
+          backdrop.classList.remove('show');
+        });
+      }
+
+      // Auto-dismiss flash messages
+      setTimeout(() => {
+        document.querySelectorAll('.flash').forEach(el => {
+          el.classList.add('fade-out');
+          setTimeout(() => el.remove(), 400);
+        });
+      }, 5000);
+
+      // Loading overlay for form submits
+      document.querySelectorAll('form[data-loading="true"]').forEach(form => {
+        form.addEventListener('submit', () => {
+          const o = document.getElementById('loadingOverlay');
+          if (o) o.style.display = 'flex';
+        });
+      });
+
+      // Notification dropdown toggle
+      const notifBell = document.getElementById('notifBell');
+      const notifDropdown = document.getElementById('notifDropdown');
+      const notifBadge = document.getElementById('notifBadge');
+      const notifList = document.getElementById('notifList');
+      const notifEmpty = document.getElementById('notifEmpty');
+      const notifDropdownCount = document.getElementById('notifDropdownCount');
+      const sidebarAlert = document.getElementById('sidebar-alert');
+      const sidebarCount = document.getElementById('overdue-count-sidebar');
+
+      let isDropdownOpen = false;
+
+      if (notifBell && notifDropdown) {
+        notifBell.addEventListener('click', (e) => {
+          e.stopPropagation();
+          isDropdownOpen = !isDropdownOpen;
+          notifDropdown.style.display = isDropdownOpen ? 'block' : 'none';
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+          if (isDropdownOpen && !notifDropdown.contains(e.target) && !notifBell.contains(e.target)) {
+            isDropdownOpen = false;
+            notifDropdown.style.display = 'none';
+          }
+        });
+      }
+
+      // Render notification items
+      function renderNotifications(notifications) {
+        notifList.innerHTML = '';
+        
+        if (notifications.length === 0) {
+          notifEmpty.style.display = 'block';
+          return;
+        }
+        
+        notifEmpty.style.display = 'none';
+        
+        notifications.forEach(notif => {
+          const item = document.createElement('div');
+          item.className = `notif-item ${notif.urgency}`;
+          item.innerHTML = `
+            <div class="notif-item-icon">
+              ${notif.urgency === 'urgent' ? '&#9888;' : '&#9889;'}
+            </div>
+            <div class="notif-item-content">
+              <div class="notif-item-name">${notif.full_name}</div>
+              <div class="notif-item-details">
+                <span>Room ${notif.room_number}</span>
+                <span>•</span>
+                <span>Due: ${notif.due_date}</span>
+                <span>•</span>
+                <span>${notif.days_remaining} day${notif.days_remaining !== 1 ? 's' : ''} left</span>
+              </div>
+              <div class="notif-item-status">${notif.urgency}</div>
+              <div class="notif-item-balance">Balance: ₱${notif.pending_balance.toFixed(2)}</div>
+            </div>
+          `;
+          
+          // Click to redirect to tenant detail
+          item.addEventListener('click', () => {
+            window.location.href = `/tenants/${notif.id}`;
+          });
+          
+          notifList.appendChild(item);
+        });
+      }
+
+      // Live notifications refresh
+      async function refreshNotifications() {
+        try {
+          const res = await fetch('{{ url_for("main.api_notifications") }}', { credentials: 'same-origin' });
+          if (!res.ok) return;
+          const data = await res.json();
+          
+          // Update badge count (notification_count for upcoming/urgent)
+          if (notifBadge) {
+            if (data.notification_count > 0) {
+              notifBadge.style.display = 'inline-flex';
+              notifBadge.textContent = data.notification_count;
+            } else {
+              notifBadge.style.display = 'none';
+            }
+          }
+          
+          // Update dropdown count
+          if (notifDropdownCount) {
+            notifDropdownCount.textContent = data.notification_count;
+          }
+          
+          // Render notifications in dropdown
+          if (data.upcoming_urgent_tenants) {
+            renderNotifications(data.upcoming_urgent_tenants);
+          }
+          
+          // Update sidebar alert (overdue)
+          if (sidebarAlert && sidebarCount) {
+            if (data.overdue_count > 0) {
+              sidebarAlert.style.display = 'block';
+              sidebarCount.textContent = data.overdue_count;
+            } else {
+              sidebarAlert.style.display = 'none';
+            }
+          }
+        } catch (_) { /* ignore */ }
+      }
+      
+      refreshNotifications();
+      setInterval(refreshNotifications, 30000);
+    })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

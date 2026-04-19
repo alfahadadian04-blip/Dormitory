@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Tenants - DORM Management{% endblock %}
+{% block page_title %}Tenants{% endblock %}
+
+{% block content %}
+<div class="page-toolbar">
+  <form method="GET" action="{{ url_for('main.tenants_list') }}" class="toolbar-form">
+    <input type="search" name="q" placeholder="Search by nickname, name, or room..." value="{{ search or '' }}" />
+    <select name="status">
+      <option value="">All statuses</option>
+      <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+      <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+    </select>
+    <button type="submit" class="btn">Filter</button>
+  </form>
+  <div class="toolbar-actions">
+    <a class="btn" href="{{ url_for('main.export_tenants') }}">Export Excel</a>
+    <a class="btn btn-primary" href="{{ url_for('main.tenant_create') }}">+ Add Tenant</a>
+  </div>
+</div>
+
+<section class="panel">
+  {% if tenants %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Nickname</th>
+            <th>Full Name</th>
+            <th>Room</th>
+            <th>Contact</th>
+            <th>Move-in</th>
+            <th class="num">Rent</th>
+            <th>Due</th>
+            <th class="num">Balance</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tenants %}
+          <tr>
+            <td><div class="cell-strong">{{ t.nickname }}</div></td>
+            <td>{{ t.full_name }}</td>
+            <td>{{ t.room_number }}</td>
+            <td class="muted">{{ t.contact_number or '-' }}</td>
+            <td class="muted">{{ t.move_in_date|date_fmt }}</td>
+            <td class="num">&#8369;{{ t.monthly_rent|money }}</td>
+            <td class="num">{{ t.due_day }}</td>
+            <td class="num">&#8369;{{ t.pending_balance|money }}</td>
+            <td>
+              <span class="badge badge-{{ t.payment_status }}">{{ t.payment_status|capitalize }}</span>
+            </td>
+            <td class="row-actions">
+              <a class="btn btn-sm" href="{{ url_for('main.tenant_detail', tenant_id=t.id) }}">View</a>
+              <a class="btn btn-sm" href="{{ url_for('main.tenant_edit', tenant_id=t.id) }}">Edit</a>
+              <form method="POST" action="{{ url_for('main.tenant_delete', tenant_id=t.id) }}"
+                    onsubmit="return confirm('Delete tenant {{ t.nickname }}? This also removes their payments.');"
+                    style="display:inline;">
+                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">&#8709;</div>
+      <p>No tenants yet.</p>
+      <a class="btn btn-primary" href="{{ url_for('main.tenant_create') }}">Add your first tenant</a>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

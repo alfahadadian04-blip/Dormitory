@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - DORM Management{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Tenants</div>
+    <div class="stat-value">{{ total_tenants }}</div>
+    <div class="stat-sub muted">All records</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Tenants</div>
+    <div class="stat-value">{{ active_tenants }}</div>
+    <div class="stat-sub muted">Currently staying</div>
+  </div>
+  <div class="stat-card accent">
+    <div class="stat-label">Monthly Income</div>
+    <div class="stat-value">&#8369;{{ monthly_income|money }}</div>
+    <div class="stat-sub muted">Payments this month</div>
+  </div>
+  <div class="stat-card warn">
+    <div class="stat-label">Unpaid / Overdue</div>
+    <div class="stat-value">
+      {{ unpaid_count }}
+      <span class="stat-chip">{{ overdue_count }} overdue</span>
+    </div>
+    <div class="stat-sub muted">Active tenants with balance</div>
+  </div>
+</div>
+
+{% if overdue_count > 0 %}
+<div class="alert alert-warn">
+  <strong>{{ overdue_count }} tenant{{ 's' if overdue_count != 1 else '' }} are overdue</strong>
+  <span class="muted">Please follow up on pending balances below.</span>
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Overdue Tenants</h2>
+      <a class="link" href="{{ url_for('main.tenants_list') }}">View all</a>
+    </div>
+    {% if overdue_tenants %}
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nickname</th>
+              <th>Room</th>
+              <th>Due Day</th>
+              <th class="num">Balance</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in overdue_tenants %}
+            <tr>
+              <td>
+                <div class="cell-strong">{{ t.nickname }}</div>
+                <div class="muted small">{{ t.full_name }}</div>
+              </td>
+              <td>{{ t.room_number }}</td>
+              <td>{{ t.due_day }}</td>
+              <td class="num">&#8369;{{ t.pending_balance|money }}</td>
+              <td class="row-actions">
+                <a class="btn btn-sm" href="{{ url_for('main.payment_create', tenant_id=t.id) }}">Record</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">&#10003;</div>
+        <p>No overdue tenants. All caught up.</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Recent Payments</h2>
+      <a class="link" href="{{ url_for('main.payments_list') }}">View all</a>
+    </div>
+    {% if recent_payments %}
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Tenant</th>
+              <th>Date</th>
+              <th class="num">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in recent_payments %}
+            <tr>
+              <td>
+                <div class="cell-strong">{{ p.tenant.nickname if p.tenant else '-' }}</div>
+                <div class="muted small">{{ p.tenant.room_number if p.tenant else '' }}</div>
+              </td>
+              <td>{{ p.payment_date|date_fmt }}</td>
+              <td class="num">&#8369;{{ p.amount|money }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">&#8709;</div>
+        <p>No payments recorded yet.</p>
+        <a class="btn btn-primary" href="{{ url_for('main.payment_create') }}">Record a payment</a>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

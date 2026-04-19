@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Payments - DORM Management{% endblock %}
+{% block page_title %}Payments{% endblock %}
+
+{% block content %}
+<div class="page-toolbar">
+  <form method="GET" action="{{ url_for('main.payments_list') }}" class="toolbar-form">
+    <select name="tenant_id">
+      <option value="">All tenants</option>
+      {% for t in tenants %}
+        <option value="{{ t.id }}" {% if tenant_id == t.id %}selected{% endif %}>{{ t.nickname }} — Room {{ t.room_number }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+  <div class="toolbar-actions">
+    <a class="btn" href="{{ url_for('main.export_payments') }}">Export Excel</a>
+    <a class="btn btn-primary" href="{{ url_for('main.payment_create') }}">+ Record Payment</a>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Payment History</h2>
+    <span class="muted">Total: <strong>&#8369;{{ total|money }}</strong></span>
+  </div>
+  {% if payments %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Tenant</th>
+            <th>Room</th>
+            <th class="num">Amount</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+          <tr>
+            <td>{{ p.payment_date|date_fmt }}</td>
+            <td>
+              <div class="cell-strong">{{ p.tenant.nickname if p.tenant else '-' }}</div>
+              <div class="muted small">{{ p.tenant.full_name if p.tenant else '' }}</div>
+            </td>
+            <td>{{ p.tenant.room_number if p.tenant else '-' }}</td>
+            <td class="num">&#8369;{{ p.amount|money }}</td>
+            <td class="muted">{{ p.notes or '-' }}</td>
+            <td class="row-actions">
+              <form method="POST" action="{{ url_for('main.payment_delete', payment_id=p.id) }}"
+                    onsubmit="return confirm('Delete this payment? Balance will be restored.');"
+                    style="display:inline;">
+                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">&#8709;</div>
+      <p>No payments recorded.</p>
+      <a class="btn btn-primary" href="{{ url_for('main.payment_create') }}">Record a payment</a>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

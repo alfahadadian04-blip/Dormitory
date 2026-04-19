@@ -1,0 +1,523 @@
+{% extends "base.html" %}
+{% block title %}Reports - DORM Management{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<div class="page-toolbar">
+  <h2 class="toolbar-title">Summary</h2>
+  <div class="toolbar-actions">
+    <div class="view-toggle">
+      <button class="toggle-btn active" data-view="classic" id="classicViewBtn">Classic View</button>
+      <button class="toggle-btn" data-view="analytics" id="analyticsViewBtn">Analytics Dashboard</button>
+    </div>
+    <a class="btn" href="{{ url_for('main.export_tenants') }}">Export Tenants (.xlsx)</a>
+    <a class="btn btn-primary" href="{{ url_for('main.export_payments') }}">Export Payments (.xlsx)</a>
+  </div>
+</div>
+
+<!-- Classic View (Existing) -->
+<div id="classicView" class="reports-view">
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Tenants</div>
+    <div class="stat-value">{{ total_tenants }}</div>
+    <div class="stat-sub muted">{{ active_tenants }} active · {{ inactive_tenants }} inactive</div>
+  </div>
+  <div class="stat-card accent">
+    <div class="stat-label">Monthly Income</div>
+    <div class="stat-value" id="classicMonthlyIncome">₱0.00</div>
+    <div class="stat-sub muted">This month</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Income</div>
+    <div class="stat-value" id="classicTotalIncome">₱0.00</div>
+    <div class="stat-sub muted">All-time</div>
+  </div>
+  <div class="stat-card warn">
+    <div class="stat-label">Outstanding Balance</div>
+    <div class="stat-value" id="classicTotalBalance">₱0.00</div>
+    <div class="stat-sub muted">Across active tenants</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Overdue Tenants ({{ overdue_tenants|length }})</h2>
+    </div>
+    {% if overdue_tenants %}
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Nickname</th><th>Room</th><th>Due Day</th><th class="num">Balance</th></tr>
+          </thead>
+          <tbody>
+            {% for t in overdue_tenants %}
+            <tr>
+              <td><div class="cell-strong">{{ t.nickname }}</div><div class="muted small">{{ t.full_name }}</div></td>
+              <td>{{ t.room_number }}</td>
+              <td>{{ t.due_day }}</td>
+              <td class="num" data-balance="{{ t.pending_balance }}">₱0.00</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"><div class="empty-icon">&#10003;</div><p>No overdue tenants.</p></div>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Tenants with Pending Balance ({{ unpaid_tenants|length }})</h2>
+    </div>
+    {% if unpaid_tenants %}
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Nickname</th><th>Room</th><th>Due Day</th><th class="num">Balance</th></tr>
+          </thead>
+          <tbody>
+            {% for t in unpaid_tenants %}
+            <tr>
+              <td><div class="cell-strong">{{ t.nickname }}</div><div class="muted small">{{ t.full_name }}</div></td>
+              <td>{{ t.room_number }}</td>
+              <td>{{ t.due_day }}</td>
+              <td class="num" data-balance="{{ t.pending_balance }}">₱0.00</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"><div class="empty-icon">&#10003;</div><p>Everyone is fully paid.</p></div>
+    {% endif %}
+  </section>
+</div>
+</div>
+
+<!-- Analytics Dashboard (New) -->
+<div id="analyticsView" class="reports-view" style="display:none;">
+  <div class="analytics-filters">
+    <div class="filter-group">
+      <label for="filterType">Filter By:</label>
+      <select id="filterType" class="filter-select">
+        <option value="monthly">Monthly</option>
+        <option value="yearly">Yearly</option>
+      </select>
+    </div>
+    <div class="filter-group" id="yearFilterGroup">
+      <label for="yearFilter">Year:</label>
+      <select id="yearFilter" class="filter-select">
+        <!-- Populated by JavaScript -->
+      </select>
+    </div>
+    <div class="filter-group" id="monthFilterGroup">
+      <label for="monthFilter">Month:</label>
+      <select id="monthFilter" class="filter-select">
+        <option value="1">January</option>
+        <option value="2">February</option>
+        <option value="3">March</option>
+        <option value="4">April</option>
+        <option value="5">May</option>
+        <option value="6">June</option>
+        <option value="7">July</option>
+        <option value="8">August</option>
+        <option value="9">September</option>
+        <option value="10">October</option>
+        <option value="11">November</option>
+        <option value="12">December</option>
+      </select>
+    </div>
+    <button id="refreshAnalytics" class="btn btn-primary">Refresh</button>
+  </div>
+
+  <div class="analytics-loading" id="analyticsLoading" style="display:none;">
+    <div class="spinner"></div>
+    <p>Loading analytics data...</p>
+  </div>
+
+  <div class="analytics-error" id="analyticsError" style="display:none;">
+    <div class="error-icon">&#9888;</div>
+    <p>Failed to load analytics data. Showing classic view instead.</p>
+    <button class="btn btn-primary" onclick="switchToClassic()">Switch to Classic View</button>
+  </div>
+
+  <div class="analytics-content" id="analyticsContent">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Tenants</div>
+        <div class="stat-value" id="analyticsTotalTenants">-</div>
+        <div class="stat-sub muted"><span id="analyticsActiveTenants">0</span> active · <span id="analyticsInactiveTenants">0</span> inactive</div>
+      </div>
+      <div class="stat-card accent">
+        <div class="stat-label">Total Income</div>
+        <div class="stat-value" id="analyticsTotalIncome">₱0.00</div>
+        <div class="stat-sub muted" id="analyticsPeriodLabel">Selected period</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Payment Count</div>
+        <div class="stat-value" id="analyticsPaymentCount">0</div>
+        <div class="stat-sub muted">Total payments</div>
+      </div>
+      <div class="stat-card warn">
+        <div class="stat-label">Outstanding Balance</div>
+        <div class="stat-value" id="analyticsTotalBalance">₱0.00</div>
+        <div class="stat-sub muted">Across active tenants</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Income Trend</h2>
+        </div>
+        <div class="chart-container" id="incomeChartContainer">
+          <canvas id="incomeChart"></canvas>
+        </div>
+        <div class="chart-empty" id="incomeChartEmpty" style="display:none;">
+          <div class="empty-icon">&#128200;</div>
+          <p>No payment data available for selected period.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Payment Distribution</h2>
+        </div>
+        <div class="chart-container" id="paymentChartContainer">
+          <canvas id="paymentChart"></canvas>
+        </div>
+        <div class="chart-empty" id="paymentChartEmpty" style="display:none;">
+          <div class="empty-icon">&#128200;</div>
+          <p>No payment data available for selected period.</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Payment History</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="analyticsPaymentTable">
+          <thead>
+            <tr><th>Period</th><th>Total Amount</th><th class="num">Payment Count</th></tr>
+          </thead>
+          <tbody id="analyticsPaymentTableBody">
+            <!-- Populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="analyticsPaymentTableEmpty" style="display:none;">
+        <div class="empty-icon">&#128200;</div>
+        <p>No payment history available for selected period.</p>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+  // Currency formatting function
+  function formatCurrency(value) {
+    return new Intl.NumberFormat('en-PH', {
+      style: 'currency',
+      currency: 'PHP'
+    }).format(value);
+  }
+
+  // Initialize Classic View with server-side data
+  function initClassicView() {
+    const monthlyIncome = {{ monthly_income }};
+    const totalIncome = {{ total_income }};
+    const totalBalance = {{ total_balance }};
+
+    document.getElementById('classicMonthlyIncome').textContent = formatCurrency(monthlyIncome);
+    document.getElementById('classicTotalIncome').textContent = formatCurrency(totalIncome);
+    document.getElementById('classicTotalBalance').textContent = formatCurrency(totalBalance);
+
+    // Format balance values in tables
+    document.querySelectorAll('[data-balance]').forEach(cell => {
+      const balance = parseFloat(cell.getAttribute('data-balance'));
+      cell.textContent = formatCurrency(balance);
+    });
+  }
+
+  // Call initialization on page load
+  if (document.getElementById('classicView')) {
+    initClassicView();
+  }
+
+  // View toggle functionality
+  const classicViewBtn = document.getElementById('classicViewBtn');
+  const analyticsViewBtn = document.getElementById('analyticsViewBtn');
+  const classicView = document.getElementById('classicView');
+  const analyticsView = document.getElementById('analyticsView');
+
+  if (classicViewBtn && analyticsViewBtn && classicView && analyticsView) {
+    classicViewBtn.addEventListener('click', () => switchToClassic());
+    analyticsViewBtn.addEventListener('click', () => switchToAnalytics());
+  }
+
+  function switchToClassic() {
+    classicView.style.display = 'block';
+    analyticsView.style.display = 'none';
+    classicViewBtn.classList.add('active');
+    analyticsViewBtn.classList.remove('active');
+  }
+
+  function switchToAnalytics() {
+    classicView.style.display = 'none';
+    analyticsView.style.display = 'block';
+    classicViewBtn.classList.remove('active');
+    analyticsViewBtn.classList.add('active');
+    loadAnalytics();
+  }
+
+  // Analytics functionality
+  const filterType = document.getElementById('filterType');
+  const yearFilter = document.getElementById('yearFilter');
+  const monthFilter = document.getElementById('monthFilter');
+  const yearFilterGroup = document.getElementById('yearFilterGroup');
+  const monthFilterGroup = document.getElementById('monthFilterGroup');
+  const refreshBtn = document.getElementById('refreshAnalytics');
+  const analyticsLoading = document.getElementById('analyticsLoading');
+  const analyticsError = document.getElementById('analyticsError');
+  const analyticsContent = document.getElementById('analyticsContent');
+
+  let incomeChart = null;
+  let paymentChart = null;
+
+  // Populate year filter
+  function populateYearFilter() {
+    const currentYear = new Date().getFullYear();
+    for (let year = currentYear; year >= currentYear - 5; year--) {
+      const option = document.createElement('option');
+      option.value = year;
+      option.textContent = year;
+      if (year === currentYear) option.selected = true;
+      yearFilter.appendChild(option);
+    }
+  }
+
+  // Set initial month filter to current month
+  function setInitialMonthFilter() {
+    const currentMonth = new Date().getMonth() + 1;
+    monthFilter.value = currentMonth;
+  }
+
+  // Toggle filter visibility based on filter type
+  function toggleFilterVisibility() {
+    if (filterType.value === 'monthly') {
+      yearFilterGroup.style.display = 'flex';
+      monthFilterGroup.style.display = 'flex';
+    } else {
+      yearFilterGroup.style.display = 'flex';
+      monthFilterGroup.style.display = 'none';
+    }
+  }
+
+  // Load analytics data
+  async function loadAnalytics() {
+    analyticsLoading.style.display = 'flex';
+    analyticsError.style.display = 'none';
+    analyticsContent.style.display = 'none';
+
+    try {
+      const params = new URLSearchParams({
+        filter_type: filterType.value,
+        year: yearFilter.value,
+        month: filterType.value === 'monthly' ? monthFilter.value : ''
+      });
+
+      const response = await fetch(`/reports/analytics?${params}`, {
+        credentials: 'same-origin'
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch analytics data');
+
+      const data = await response.json();
+
+      if (!data.success) throw new Error(data.error || 'Unknown error');
+
+      updateAnalyticsDashboard(data);
+      analyticsContent.style.display = 'block';
+    } catch (error) {
+      console.error('Analytics error:', error);
+      analyticsError.style.display = 'block';
+      switchToClassic();
+    } finally {
+      analyticsLoading.style.display = 'none';
+    }
+  }
+
+  // Update analytics dashboard with data
+  function updateAnalyticsDashboard(data) {
+    // Update stat cards
+    document.getElementById('analyticsTotalTenants').textContent = data.tenant_stats.total_tenants;
+    document.getElementById('analyticsActiveTenants').textContent = data.tenant_stats.active_tenants;
+    document.getElementById('analyticsInactiveTenants').textContent = data.tenant_stats.inactive_tenants;
+    document.getElementById('analyticsTotalBalance').textContent = formatCurrency(data.balance_stats.total_balance);
+
+    // Use backend-calculated total income and payment count for selected period
+    const totalIncome = data.total_income_period || 0;
+    const paymentCount = data.total_payments_period || 0;
+    
+    document.getElementById('analyticsTotalIncome').textContent = formatCurrency(totalIncome);
+    document.getElementById('analyticsPaymentCount').textContent = paymentCount;
+    document.getElementById('analyticsPeriodLabel').textContent = 
+      data.filter_type === 'monthly' 
+        ? `${getMonthName(data.month)} ${data.year}`
+        : `Year ${data.year}`;
+
+    // Update charts
+    updateIncomeChart(data.payments);
+    updatePaymentChart(data.payments);
+    updatePaymentTable(data.payments);
+  }
+
+  // Update income chart
+  function updateIncomeChart(payments) {
+    const ctx = document.getElementById('incomeChart').getContext('2d');
+    const chartEmpty = document.getElementById('incomeChartEmpty');
+    const chartContainer = document.getElementById('incomeChartContainer');
+
+    if (!payments || payments.length === 0) {
+      chartEmpty.style.display = 'block';
+      chartContainer.style.display = 'none';
+      return;
+    }
+
+    chartEmpty.style.display = 'none';
+    chartContainer.style.display = 'block';
+
+    if (incomeChart) incomeChart.destroy();
+
+    incomeChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: payments.map(p => {
+          if (p.month) return `${getMonthName(p.month)} ${p.year}`;
+          return p.year.toString();
+        }),
+        datasets: [{
+          label: 'Income',
+          data: payments.map(p => p.total_amount),
+          borderColor: '#5C4033',
+          backgroundColor: 'rgba(92, 64, 51, 0.1)',
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  // Update payment chart
+  function updatePaymentChart(payments) {
+    const ctx = document.getElementById('paymentChart').getContext('2d');
+    const chartEmpty = document.getElementById('paymentChartEmpty');
+    const chartContainer = document.getElementById('paymentChartContainer');
+
+    if (!payments || payments.length === 0) {
+      chartEmpty.style.display = 'block';
+      chartContainer.style.display = 'none';
+      return;
+    }
+
+    chartEmpty.style.display = 'none';
+    chartContainer.style.display = 'block';
+
+    if (paymentChart) paymentChart.destroy();
+
+    paymentChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: payments.map(p => {
+          if (p.month) return `${getMonthName(p.month)} ${p.year}`;
+          return p.year.toString();
+        }),
+        datasets: [{
+          label: 'Payment Count',
+          data: payments.map(p => p.payment_count),
+          backgroundColor: '#5C4033'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  // Update payment table
+  function updatePaymentTable(payments) {
+    const tbody = document.getElementById('analyticsPaymentTableBody');
+    const tableEmpty = document.getElementById('analyticsPaymentTableEmpty');
+    const table = document.getElementById('analyticsPaymentTable');
+
+    if (!payments || payments.length === 0) {
+      tableEmpty.style.display = 'block';
+      table.style.display = 'none';
+      return;
+    }
+
+    tableEmpty.style.display = 'none';
+    table.style.display = 'block';
+    tbody.innerHTML = '';
+
+    payments.forEach(p => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${p.month ? `${getMonthName(p.month)} ${p.year}` : p.year}</td>
+        <td>${formatCurrency(p.total_amount)}</td>
+        <td class="num">${p.payment_count}</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  // Helper functions
+  function getMonthName(monthNum) {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+    return months[monthNum - 1] || '';
+  }
+
+  // Event listeners
+  if (filterType) filterType.addEventListener('change', () => {
+    toggleFilterVisibility();
+    loadAnalytics();
+  });
+  if (yearFilter) yearFilter.addEventListener('change', loadAnalytics);
+  if (monthFilter) monthFilter.addEventListener('change', loadAnalytics);
+  if (refreshBtn) refreshBtn.addEventListener('click', loadAnalytics);
+
+  // Initialize
+  if (yearFilter) populateYearFilter();
+  if (monthFilter) setInitialMonthFilter();
+  if (filterType) toggleFilterVisibility();
+})();
+</script>
+{% endblock %}

@@ -130,40 +130,49 @@ def _get_upcoming_urgent_tenants():
 @main_bp.route("/")
 @login_required
 def dashboard():
-    total_tenants = Tenant.query.count()
-    active_tenants = Tenant.query.filter_by(status="active").count()
+    try:
+        total_tenants = Tenant.query.count()
+        active_tenants = Tenant.query.filter_by(status="active").count()
 
-    # Monthly income = payments in current month
-    today = date.today()
-    monthly_income = (
-        db.session.query(func.coalesce(func.sum(Payment.amount), 0))
-        .filter(
-            func.extract("year", Payment.payment_date) == today.year,
-            func.extract("month", Payment.payment_date) == today.month,
+        # Monthly income = payments in current month
+        today = date.today()
+        monthly_income = (
+            db.session.query(func.coalesce(func.sum(Payment.amount), 0))
+            .filter(
+                func.extract("year", Payment.payment_date) == today.year,
+                func.extract("month", Payment.payment_date) == today.month,
+            )
+            .scalar()
+            or 0
         )
-        .scalar()
-        or 0
-    )
 
-    unpaid = _get_unpaid_tenants()
-    overdue = _get_overdue_tenants()
+        unpaid = _get_unpaid_tenants()
+        overdue = _get_overdue_tenants()
 
-    recent_payments = (
-        Payment.query.order_by(Payment.payment_date.desc(), Payment.id.desc())
-        .limit(5)
-        .all()
-    )
+        recent_payments = (
+            Payment.query.order_by(Payment.payment_date.desc(), Payment.id.desc())
+            .limit(5)
+            .all()
+        )
 
-    return render_template(
-        "dashboard.html",
-        total_tenants=total_tenants,
-        active_tenants=active_tenants,
-        monthly_income=float(monthly_income),
-        unpaid_count=len(unpaid),
-        overdue_count=len(overdue),
-        overdue_tenants=overdue,
-        recent_payments=recent_payments,
-    )
+        response = render_template(
+            "dashboard.html",
+            total_tenants=total_tenants,
+            active_tenants=active_tenants,
+            monthly_income=float(monthly_income),
+            unpaid_count=len(unpaid),
+            overdue_count=len(overdue),
+            overdue_tenants=overdue,
+            recent_payments=recent_payments,
+        )
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        app.logger.error(f"Error loading dashboard: {e}")
+        flash("Error loading dashboard data. Please try again.", "error")
+        return render_template("dashboard.html", total_tenants=0, active_tenants=0, monthly_income=0, unpaid_count=0, overdue_count=0, overdue_tenants=[], recent_payments=[])
 
 
 # ---------------------------------------------------------------------------
@@ -203,26 +212,35 @@ def api_notifications():
 @main_bp.route("/tenants")
 @login_required
 def tenants_list():
-    search = (request.args.get("q") or "").strip()
-    status_filter = request.args.get("status", "")
+    try:
+        search = (request.args.get("q") or "").strip()
+        status_filter = request.args.get("status", "")
 
-    query = Tenant.query
-    if search:
-        like = f"%{search}%"
-        query = query.filter(
-            db.or_(
-                Tenant.nickname.ilike(like),
-                Tenant.full_name.ilike(like),
-                Tenant.room_number.ilike(like),
+        query = Tenant.query
+        if search:
+            like = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Tenant.nickname.ilike(like),
+                    Tenant.full_name.ilike(like),
+                    Tenant.room_number.ilike(like),
+                )
             )
-        )
-    if status_filter in ("active", "inactive"):
-        query = query.filter(Tenant.status == status_filter)
+        if status_filter in ("active", "inactive"):
+            query = query.filter(Tenant.status == status_filter)
 
-    tenants = query.order_by(Tenant.room_number.asc(), Tenant.nickname.asc()).all()
-    return render_template(
-        "tenants.html", tenants=tenants, search=search, status_filter=status_filter
-    )
+        tenants = query.order_by(Tenant.room_number.asc(), Tenant.nickname.asc()).all()
+        response = render_template(
+            "tenants.html", tenants=tenants, search=search, status_filter=status_filter
+        )
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        app.logger.error(f"Error loading tenants: {e}")
+        flash("Error loading tenant data. Please try again.", "error")
+        return render_template("tenants.html", tenants=[], search="", status_filter="")
 
 
 @main_bp.route("/tenants/new", methods=["GET", "POST"])
@@ -268,15 +286,24 @@ def tenant_create():
 @main_bp.route("/tenants/<int:tenant_id>")
 @login_required
 def tenant_detail(tenant_id: int):
-    tenant = Tenant.query.get_or_404(tenant_id)
-    payments = tenant.payments.all()
-    total_paid = sum((float(p.amount) for p in payments), 0.0)
-    return render_template(
-        "tenant_detail.html",
-        tenant=tenant,
-        payments=payments,
-        total_paid=total_paid,
-    )
+    try:
+        tenant = Tenant.query.get_or_404(tenant_id)
+        payments = tenant.payments.all()
+        total_paid = sum((float(p.amount) for p in payments), 0.0)
+        response = render_template(
+            "tenant_detail.html",
+            tenant=tenant,
+            payments=payments,
+            total_paid=total_paid,
+        )
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        app.logger.error(f"Error loading tenant detail: {e}")
+        flash("Error loading tenant data. Please try again.", "error")
+        return redirect(url_for("main.tenants_list"))
 
 
 @main_bp.route("/tenants/<int:tenant_id>/edit", methods=["GET", "POST"])
@@ -343,22 +370,31 @@ def tenant_delete(tenant_id: int):
 @main_bp.route("/payments")
 @login_required
 def payments_list():
-    tenant_id = request.args.get("tenant_id", type=int)
-    query = Payment.query
-    if tenant_id:
-        query = query.filter_by(tenant_id=tenant_id)
-    payments = query.order_by(
-        Payment.payment_date.desc(), Payment.id.desc()
-    ).all()
-    tenants = Tenant.query.order_by(Tenant.nickname.asc()).all()
-    total = sum((float(p.amount) for p in payments), 0.0)
-    return render_template(
-        "payments.html",
-        payments=payments,
-        tenants=tenants,
-        tenant_id=tenant_id,
-        total=total,
-    )
+    try:
+        tenant_id = request.args.get("tenant_id", type=int)
+        query = Payment.query
+        if tenant_id:
+            query = query.filter_by(tenant_id=tenant_id)
+        payments = query.order_by(
+            Payment.payment_date.desc(), Payment.id.desc()
+        ).all()
+        tenants = Tenant.query.order_by(Tenant.nickname.asc()).all()
+        total = sum((float(p.amount) for p in payments), 0.0)
+        response = render_template(
+            "payments.html",
+            payments=payments,
+            tenants=tenants,
+            tenant_id=tenant_id,
+            total=total,
+        )
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        app.logger.error(f"Error loading payments: {e}")
+        flash("Error loading payment data. Please try again.", "error")
+        return render_template("payments.html", payments=[], tenants=[], tenant_id=None, total=0)
 
 
 @main_bp.route("/payments/new", methods=["GET", "POST"])
@@ -573,45 +609,64 @@ def reports_analytics():
 @main_bp.route("/reports")
 @login_required
 def reports():
-    total_tenants = Tenant.query.count()
-    active_tenants = Tenant.query.filter_by(status="active").count()
-    inactive_tenants = total_tenants - active_tenants
+    try:
+        total_tenants = Tenant.query.count()
+        active_tenants = Tenant.query.filter_by(status="active").count()
+        inactive_tenants = total_tenants - active_tenants
 
-    total_income = (
-        db.session.query(func.coalesce(func.sum(Payment.amount), 0)).scalar() or 0
-    )
-    today = date.today()
-    monthly_income = (
-        db.session.query(func.coalesce(func.sum(Payment.amount), 0))
-        .filter(
-            func.extract("year", Payment.payment_date) == today.year,
-            func.extract("month", Payment.payment_date) == today.month,
+        total_income = (
+            db.session.query(func.coalesce(func.sum(Payment.amount), 0)).scalar() or 0
         )
-        .scalar()
-        or 0
-    )
+        today = date.today()
+        monthly_income = (
+            db.session.query(func.coalesce(func.sum(Payment.amount), 0))
+            .filter(
+                func.extract("year", Payment.payment_date) == today.year,
+                func.extract("month", Payment.payment_date) == today.month,
+            )
+            .scalar()
+            or 0
+        )
 
-    total_balance = (
-        db.session.query(func.coalesce(func.sum(Tenant.pending_balance), 0))
-        .filter(Tenant.status == "active", Tenant.pending_balance > 0)
-        .scalar()
-        or 0
-    )
+        total_balance = (
+            db.session.query(func.coalesce(func.sum(Tenant.pending_balance), 0))
+            .filter(Tenant.status == "active", Tenant.pending_balance > 0)
+            .scalar()
+            or 0
+        )
 
-    overdue_tenants = _get_overdue_tenants()
-    unpaid_tenants = _get_unpaid_tenants()
+        overdue_tenants = _get_overdue_tenants()
+        unpaid_tenants = _get_unpaid_tenants()
 
-    return render_template(
-        "reports.html",
-        total_tenants=total_tenants,
-        active_tenants=active_tenants,
-        inactive_tenants=inactive_tenants,
-        total_income=float(total_income),
-        monthly_income=float(monthly_income),
-        total_balance=float(total_balance),
-        overdue_tenants=overdue_tenants,
-        unpaid_tenants=unpaid_tenants,
-    )
+        response = render_template(
+            "reports.html",
+            total_tenants=total_tenants,
+            active_tenants=active_tenants,
+            inactive_tenants=inactive_tenants,
+            total_income=float(total_income),
+            monthly_income=float(monthly_income),
+            total_balance=float(total_balance),
+            overdue_tenants=overdue_tenants,
+            unpaid_tenants=unpaid_tenants,
+        )
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
+    except Exception as e:
+        app.logger.error(f"Error loading reports: {e}")
+        flash("Error loading reports data. Please try again.", "error")
+        return render_template(
+            "reports.html",
+            total_tenants=0,
+            active_tenants=0,
+            inactive_tenants=0,
+            total_income=0,
+            monthly_income=0,
+            total_balance=0,
+            overdue_tenants=[],
+            unpaid_tenants=[],
+        )
 
 
 def _style_header(ws, headers):
